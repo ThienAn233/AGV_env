@@ -22,7 +22,7 @@ p.setRealTimeSimulation(True)
 fixed = False
 g = (0,0,-9.81) 
 pi = np.pi
-max_speed = 10 # m/s
+max_speed = 10 # rad/s
 max_torque= 10 # Nm
 
 

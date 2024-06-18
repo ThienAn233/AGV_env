@@ -14,6 +14,7 @@ class AGV_env(gym.Env):
         max_length      = 1000,
         num_step        = 24,
         render_mode     = None,
+        debug           = False,
         robot_file      = 'AGV_env//urdf//AGV.urdf',
         target_file     = 'AGV_env//urdf//target.urdf',
         seed            = 0,
@@ -30,6 +31,8 @@ class AGV_env(gym.Env):
             self.clientId = p.connect(p.DIRECT)
         self.max_length     = max_length
         self.num_step       = num_step
+        self.render_mode    = render_mode
+        self.debug          = debug
         self.robot_file     = robot_file
         self.target_file    = target_file
         self.seed           = seed
@@ -48,7 +51,7 @@ class AGV_env(gym.Env):
         self.robotId    = 1
         self.targetId   = 2
         self.mode       = p.VELOCITY_CONTROL
-        self.max_vel    = 10 # m/s
+        self.max_vel    = 10 # rad/s
         self.max_to     = 10 # Nm
         self.action_sp  = 2
         self.sleep_time = 1./240.
@@ -60,7 +63,7 @@ class AGV_env(gym.Env):
         
         # Archives variables
         self.world_pos          = np.zeros((1,3))
-        self.world_ori          = np.zeros((1,3))
+        self.world_ori          = np.zeros((1,4))
         self.local_ori          = np.zeros((1,2))
         self.local_lin_vel      = np.zeros((1,2))
         self.target_dir_world   = np.zeros((1,3))
@@ -118,6 +121,35 @@ class AGV_env(gym.Env):
         return
     
     
+    def get_velocity(self):
+        # Get the velocity from robot local frame
+        temp_obs_value          = []
+        fac                     = np.array([1,0,0,0])
+        base_pos, base_ori      = p.getBasePositionAndOrientation(self.robotId,physicsClientId=self.clientId)[:2]
+        local_facing_dir        = utils.passive_rotation(np.array(base_ori),fac)[:2]
+        self.world_pos[0,:]     = np.array(base_pos)
+        self.world_ori[0,:]     = np.array(base_ori)     
+        self.local_ori[0,:]     = np.array(local_facing_dir)
+        linear_vel, _           = p.getBaseVelocity(self.robotId,physicsClientId=self.clientId)
+        linear_vel              = np.array(list(linear_vel)+[1])
+        quaternion1, quaternion2= np.array(base_ori),linear_vel
+        local_linear_vel        = utils.quaternion_multiply(utils.quaternion_multiply(utils.quaternion_inverse(quaternion1),quaternion2),quaternion1)[:2]
+        temp_obs_value         += [*local_linear_vel]
+        # Check weather global velocity equal local velocity
+        # print(np.abs(np.linalg.norm(local_linear_vel)-np.linalg.norm(linear_vel[:2]))<1e-4)
+        return temp_obs_value
+    
+    
+    def get_lidar(self):
+        # Get lidar sensor signals
+        return
+    
+    
+    def get_target_dir(self):
+        # Get target direction vector
+        return
+    
+    
     def get_all_obs(self):
         # Get all observation from sensors
         return [0 for i in range(10)]
@@ -156,8 +188,10 @@ class AGV_env(gym.Env):
             if real_time:
                 self.stopper(self.sleep_time)
         return self.get_obs()
+  
     
-    
-env = AGV_env(render_mode='human')
-while True:
-    env.step(10*np.random.rand(2,),real_time=True)
+if __name__ == '__main__':
+    env = AGV_env(render_mode='human')
+    while True:
+        print(env.get_velocity())
+        env.step(np.array([3,2]),real_time=True)
