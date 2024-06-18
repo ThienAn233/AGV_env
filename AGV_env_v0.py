@@ -39,6 +39,8 @@ class AGV_env(gym.Env):
         self.buffer_length  = buffer_length
         self.jointId_list   = []
         self.jointName_list = []
+        self.rayId_list = []
+        self.vizId_list = []
         
         
         # Random variables
@@ -100,6 +102,9 @@ class AGV_env(gym.Env):
         self.observation_space  = spaces.Box(low = -3.4e+38, high = 3.4e+38, shape = (self.observation_space_,), dtype = np.float32)
         print(f'Action space:       {self.action_space}')
         print(f'Observation space:  {self.observation_space}')
+        if self.debug:
+            for _ in range(1):
+                self.vizId_list += [p.addUserDebugLine([0,0,0], [0,0,1], [0,0,0], physicsClientId=self.clientId)]
         print('-'*60)
     
     
@@ -133,10 +138,10 @@ class AGV_env(gym.Env):
         linear_vel, _           = p.getBaseVelocity(self.robotId,physicsClientId=self.clientId)
         linear_vel              = np.array(list(linear_vel)+[1])
         quaternion1, quaternion2= np.array(base_ori),linear_vel
-        local_linear_vel        = utils.quaternion_multiply(utils.quaternion_multiply(utils.quaternion_inverse(quaternion1),quaternion2),quaternion1)[:2]
-        temp_obs_value         += [*local_linear_vel]
+        self.local_lin_vel[0,:] = utils.quaternion_multiply(utils.quaternion_multiply(utils.quaternion_inverse(quaternion1),quaternion2),quaternion1)[:2]
+        temp_obs_value         += [*self.local_lin_vel[0]]
         # Check weather global velocity equal local velocity
-        # print(np.abs(np.linalg.norm(local_linear_vel)-np.linalg.norm(linear_vel[:2]))<1e-4)
+        print(np.abs(np.linalg.norm(self.local_lin_vel)-np.linalg.norm(linear_vel[:2]))<1e-4)
         return temp_obs_value
     
     
@@ -160,6 +165,20 @@ class AGV_env(gym.Env):
         return
     
     
+    def viz_dir(self):
+        # Visualize velocity vector
+        base_pos = self.world_pos[0]
+        base_ori = np.array([*self.local_ori[0],0])
+        p.addUserDebugLine(base_pos,base_pos+base_ori,lineWidth = 2, lifeTime =.5, lineColorRGB = [0,1,0],replaceItemUniqueId=self.vizId_list[0],physicsClientId = self.clientId)
+        return
+    
+    
+    def viz(self):
+        # Visualize all component
+        self.viz_dir()
+        return
+    
+    
     def act(self,action):
         # Perform action in the environment
         reshape_action = np.hstack([action[0],action[0]])
@@ -169,7 +188,7 @@ class AGV_env(gym.Env):
                                     targetVelocities = reshape_action, 
                                     forces = np.ones_like(reshape_action)*self.max_to, 
                                     physicsClientId = self.clientId)
-        
+    
     
     def step(self,action,real_time=False):
         # Step the simulation
@@ -187,11 +206,13 @@ class AGV_env(gym.Env):
             p.resetBasePositionAndOrientation(self.targetId,self.target_dir_world[0], [0,0,0,1], physicsClientId = self.clientId)
             if real_time:
                 self.stopper(self.sleep_time)
+            if self.debug:
+                self.viz()
         return self.get_obs()
   
     
 if __name__ == '__main__':
-    env = AGV_env(render_mode='human')
+    env = AGV_env(render_mode='human',debug=True)
     while True:
         print(env.get_velocity())
-        env.step(np.array([3,2]),real_time=True)
+        env.step(np.array([2,4]),real_time=True)
