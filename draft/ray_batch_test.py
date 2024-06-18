@@ -21,7 +21,7 @@ rayFrom = []
 rayTo = []
 rayIds = []
 
-numRays = 360
+numRays = 500
 
 rayLen = 13
 

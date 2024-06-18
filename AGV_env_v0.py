@@ -53,14 +53,19 @@ class AGV_env(gym.Env):
         self.robotId    = 1
         self.targetId   = 2
         self.mode       = p.VELOCITY_CONTROL
-        self.max_vel    = 10 # rad/s
-        self.max_to     = 10 # Nm
+        self.max_vel    = 10    # rad/s
+        self.max_to     = 10    # Nm
+        self.numray     = 500   # From Hshop C1M1 RPLIDAR
+        self.raylen     = 12    # From Hshop C1M1 RPLIDAR
         self.action_sp  = 2
         self.sleep_time = 1./240.
         self.initHeight = 0.1
+        self.rayHfromB  = 0.2
         np.random.seed(self.seed)
         self.g          = (0,0,-9.81) 
         self.time_steps_in_current_episode = [0]
+        self.x          = np.array([i/self.numray for i in range(self.numray)])
+        self.rayend     = np.vstack([self.raylen*np.cos(2*np.pi*self.x), self.raylen*np.sin(2*np.pi*self.x),np.zeros_like(self.x),np.ones_like(self.x)])
         
         
         # Archives variables
@@ -68,6 +73,7 @@ class AGV_env(gym.Env):
         self.world_ori          = np.zeros((1,4))
         self.local_ori          = np.zeros((1,2))
         self.local_lin_vel      = np.zeros((1,2))
+        self.ray_info           = [[]]          
         self.target_dir_world   = np.zeros((1,3))
         self.target_dir_robot   = np.zeros((1,2))
 
@@ -103,8 +109,10 @@ class AGV_env(gym.Env):
         print(f'Action space:       {self.action_space}')
         print(f'Observation space:  {self.observation_space}')
         if self.debug:
+            for i in range(self.numray):
+                self.rayId_list += [p.addUserDebugLine([0,0,0], [0,0,0], [0,1,0], physicsClientId=self.clientId)]
             for _ in range(1):
-                self.vizId_list += [p.addUserDebugLine([0,0,0], [0,0,1], [0,0,0], physicsClientId=self.clientId)]
+                self.vizId_list += [p.addUserDebugLine([0,0,0], [0,0,0], [0,0,0], physicsClientId=self.clientId)]
         print('-'*60)
     
     
@@ -141,13 +149,27 @@ class AGV_env(gym.Env):
         self.local_lin_vel[0,:] = utils.quaternion_multiply(utils.quaternion_multiply(utils.quaternion_inverse(quaternion1),quaternion2),quaternion1)[:2]
         temp_obs_value         += [*self.local_lin_vel[0]]
         # Check weather global velocity equal local velocity
-        print(np.abs(np.linalg.norm(self.local_lin_vel)-np.linalg.norm(linear_vel[:2]))<1e-4)
+        # print(np.abs(np.linalg.norm(self.local_lin_vel)-np.linalg.norm(linear_vel[:2]))<1e-4)
         return temp_obs_value
     
     
     def get_lidar(self):
         # Get lidar sensor signals
-        return
+        temp_obs_value      = []
+        base_pos, base_ori  = self.world_pos[0], self.world_ori[0]
+        start               = np.array([[base_pos[0],base_pos[1],self.rayHfromB] for i in range(self.numray)])
+        quat1, quat2        = base_ori,self.rayend
+        end                 = (utils.quaternion_multiply(utils.quaternion_multiply(quat1,quat2),utils.quaternion_inverse(quat1))[:3,:]).T+start
+        ray_contact         = []
+        ray_tio             = []
+        ray_hit             = []
+        for info in p.rayTestBatch(start,end,numThreads=0,physicsClientId =self.clientId):
+            ray_contact    += [info[3]]
+            ray_tio        += [info[2]]
+            ray_hit        += [info[0]]
+        self.ray_info[0]    = [start,end,np.array(ray_tio),np.array(ray_hit)]
+        temp_obs_value     += [*ray_tio]
+        return temp_obs_value
     
     
     def get_target_dir(self):
@@ -173,9 +195,21 @@ class AGV_env(gym.Env):
         return
     
     
+    def viz_ray(self):
+        # Visualize raydetect from lidar
+        start, end, ratio, hit = self.ray_info[0]
+        for i,Id in enumerate(self.rayId_list):
+            if hit[i] != -1:
+                p.addUserDebugLine(start[i],start[i]+(ratio[i]*(end[i]-start[i])),[0,1,0],replaceItemUniqueId=Id,physicsClientId = self.clientId)
+            else:
+                p.addUserDebugLine([0,0,0],[0,0,0],[1,0,0],replaceItemUniqueId=Id,physicsClientId = self.clientId)
+                # p.addUserDebugLine(start[i],end[i],[1,0,0],replaceItemUniqueId=Id,physicsClientId = self.clientId)
+        return
+    
     def viz(self):
         # Visualize all component
         self.viz_dir()
+        self.viz_ray()
         return
     
     
@@ -212,7 +246,12 @@ class AGV_env(gym.Env):
   
     
 if __name__ == '__main__':
-    env = AGV_env(render_mode='human',debug=True)
+    env = AGV_env(render_mode='human',debug=True,num_step=1)
+    p.loadURDF('cube.urdf',[-1,1,1])
+    p.loadURDF('cube.urdf',[1,1,1])
+    p.loadURDF('cube.urdf',[1,-1,1])
+    p.loadURDF('cube.urdf',[-1,-1,1])
     while True:
         print(env.get_velocity())
-        env.step(np.array([2,4]),real_time=True)
+        print(len(env.get_lidar()))
+        env.step(np.array([2,2]),real_time=True)
