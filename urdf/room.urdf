@@ -1,0 +1,138 @@
+<?xml version="1.0"?>
+<robot name="room" >
+
+
+  <link name="base_link">
+
+    <visual>
+      <geometry>
+        <box size="60 60 0"/>
+      </geometry>
+      <material name="white">
+        <color rgba="255 255 255 1"/>
+      </material>
+    </visual>
+  	<collision>
+      <geometry>
+        <box size="60 60 0"/>
+      </geometry>
+  	</collision>
+  
+  </link>
+
+
+  <link name="wall1">
+
+    <visual>
+      <geometry>
+        <box size="60 0 1"/>
+      </geometry>
+      <origin rpy="0 0 0" xyz="0 30 0.5"/>
+      <material name="gray">
+        <color rgba="1 1 1 1"/>
+      </material>
+    </visual>
+  	<collision>
+      <geometry>
+        <box size="60 0 1"/>
+      </geometry>
+      <origin rpy="0 0 0" xyz="0 30 0.5"/>
+  	</collision>
+
+  </link>
+
+
+  <link name="wall2">
+
+    <visual>
+      <geometry>
+        <box size="60 0 1"/>
+      </geometry>
+      <origin rpy="0 0 0" xyz="0 -30 0.5"/>
+      <material name="gray">
+        <color rgba="1 1 1 1"/>
+      </material>
+    </visual>
+  	<collision>
+      <geometry>
+        <box size="60 0 1"/>
+      </geometry>
+      <origin rpy="0 0 0" xyz="0 -30 0.5"/>
+  	</collision>
+
+  </link>
+
+
+  <link name="wall3">
+
+    <visual>
+      <geometry>
+        <box size="0 60 1"/>
+      </geometry>
+      <origin rpy="0 0 0" xyz="30 0 0.5"/>
+      <material name="gray">
+        <color rgba="1 1 1 1"/>
+      </material>
+    </visual>
+  	<collision>
+      <geometry>
+        <box size="0 60 1"/>
+      </geometry>
+      <origin rpy="0 0 0" xyz="30 0 0.5"/>
+  	</collision>
+
+  </link>
+
+
+  <link name="wall4">
+
+    <visual>
+      <geometry>
+        <box size="0 60 1"/>
+      </geometry>
+      <origin rpy="0 0 0" xyz="-30 0 0.5"/>
+      <material name="gray">
+        <color rgba="1 1 1 1"/>
+      </material>
+    </visual>
+  	<collision>
+      <geometry>
+        <box size="0 60 1"/>
+      </geometry>
+      <origin rpy="0 0 0" xyz="-30 0 0.5"/>
+  	</collision>
+
+  </link>
+
+
+    <joint name="base_to_wall1" type="fixed">
+        <parent link="base_link"/>
+        <child link="wall1"/>
+        <origin xyz="0 0 0"/>
+        <axis xyz="0 0 0"/>
+    </joint>
+
+
+    <joint name="base_to_wall2" type="fixed">
+        <parent link="base_link"/>
+        <child link="wall2"/>
+        <origin xyz="0 0 0"/>
+        <axis xyz="0 0 0"/>
+    </joint>
+
+
+    <joint name="base_to_wall3" type="fixed">
+        <parent link="base_link"/>
+        <child link="wall3"/>
+        <origin xyz="0 0 0"/>
+        <axis xyz="0 0 0"/>
+    </joint>
+
+
+    <joint name="base_to_wall4" type="fixed">
+        <parent link="base_link"/>
+        <child link="wall4"/>
+        <origin xyz="0 0 0"/>
+        <axis xyz="0 0 0"/>
+    </joint>
+</robot>

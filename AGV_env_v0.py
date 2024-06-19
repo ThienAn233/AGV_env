@@ -17,8 +17,8 @@ class AGV_env(gym.Env):
         debug           = False,
         robot_file      = 'AGV_env//urdf//AGV.urdf',
         target_file     = 'AGV_env//urdf//target.urdf',
+        room_file       = 'AGV_env//urdf//room.urdf',
         seed            = 0,
-        buffer_length   = 1,
     ):
         super().__init__()
         
@@ -35,8 +35,8 @@ class AGV_env(gym.Env):
         self.debug          = debug
         self.robot_file     = robot_file
         self.target_file    = target_file
+        self.room_file      = room_file
         self.seed           = seed
-        self.buffer_length  = buffer_length
         self.jointId_list   = []
         self.jointName_list = []
         self.rayId_list = []
@@ -83,7 +83,7 @@ class AGV_env(gym.Env):
         print(f'ENVIRONMENT STARTED WITH SEED {self.seed}')
         p.setAdditionalSearchPath(pybullet_data.getDataPath(), physicsClientId=self.clientId)
         p.setGravity(*self.g, physicsClientId=self.clientId)
-        self.planeId = p.loadURDF('plane.urdf',physicsClientId = self.clientId)
+        self.planeId = p.loadURDF(self.room_file,basePosition=[0,0,0],baseOrientation=[0,0,0,1],globalScaling=1,useFixedBase=True,physicsClientId = self.clientId)
         self.robotId = p.loadURDF(self.robot_file,basePosition=[0,0,self.initHeight],baseOrientation=[0,0,0,1],physicsClientId = self.clientId)
         self.targetId= p.loadURDF(self.target_file,basePosition=[0,0,0],baseOrientation=[0,0,0,1],physicsClientId = self.clientId)
         ###
@@ -131,6 +131,13 @@ class AGV_env(gym.Env):
     
     def sample_target(self):
         # Sample target direction of robot
+        ## Reset robot
+        p.resetBasePositionAndOrientation(self.robotId,[0.,0.,self.initHeight],[0,0,0,1])
+        ## Reset target
+        new_direction   = np.random.normal(0,5,2)
+        new_direction   = np.hstack([30*new_direction/np.linalg.norm(new_direction),np.array([self.initHeight])])
+        p.resetBasePositionAndOrientation(self.targetId, new_direction, [0,0,0,1], physicsClientId = self.clientId)
+        self.target_dir_world[0] = new_direction
         return
     
     
@@ -174,24 +181,53 @@ class AGV_env(gym.Env):
     
     def get_target_dir(self):
         # Get target direction vector
-        return
+        temp_obs_value = []
+        base_pos, base_ori = self.world_pos[0], self.world_ori[0]
+        target_dir = self.target_dir_world[0] - base_pos
+        target_dir = np.array(list(target_dir)+[0])
+        qua1, qua2 = base_ori, target_dir
+        target_dir = utils.quaternion_multiply(utils.quaternion_multiply(utils.quaternion_inverse(qua1),qua2),qua1)[:2]
+        self.target_dir_robot[0] = target_dir
+        temp_obs_value += [*(target_dir/np.linalg.norm(target_dir))]
+        return temp_obs_value
     
     
     def get_all_obs(self):
         # Get all observation from sensors
-        return [0 for i in range(10)]
+        temp_obs_value  = []
+        ## Target dir
+        target_info     = self.get_target_dir()
+        ## Velocity vector
+        velo_info       = self.get_velocity()
+        ## RPLIDAR 
+        ray_info        = self.get_lidar()
+        
+        temp_obs_value += [ *target_info,
+                            *velo_info,
+                            *ray_info,
+                          ]
+        return temp_obs_value
     
     
     def get_obs(self):
         # Get all observation, reward and termination info
-        return
+        ## GET OBSERVATION
+        obs = np.array(self.get_all_obs()).astype('float32')
+        ## GET REWARD
+        rew = self.calculate_reward()
+        ## GET INFO
+        ray_inf = obs[-self.numray:]
+        terminated = np.sum(ray_inf < 0.01*self.raylen) > 0
+        truncated  = self.time_steps_in_current_episode[0]> self.max_length
+        info = None
+        return obs, rew, bool(terminated), bool(truncated), info
     
     
     def viz_dir(self):
         # Visualize velocity vector
         base_pos = self.world_pos[0]
         base_ori = np.array([*self.local_ori[0],0])
-        p.addUserDebugLine(base_pos,base_pos+base_ori,lineWidth = 2, lifeTime =.5, lineColorRGB = [0,1,0],replaceItemUniqueId=self.vizId_list[0],physicsClientId = self.clientId)
+        p.addUserDebugLine(base_pos,base_pos+base_ori,lineWidth = 2, lifeTime =.5, lineColorRGB = [1,0,0],replaceItemUniqueId=self.vizId_list[0],physicsClientId = self.clientId)
         return
     
     
@@ -224,6 +260,20 @@ class AGV_env(gym.Env):
                                     physicsClientId = self.clientId)
     
     
+    def calculate_reward(self):
+        # Calculate reward value
+        return None
+    
+    
+    def reset(self):
+        self.sample_target()
+        self.sample_scene()
+        self.time_steps_in_current_episode[0] = 0
+        self.previous_act[0]                  = np.zeros((self.action_sp))
+        info = None
+        return np.array(self.get_all_obs()).astype('float32'), info
+    
+    
     def step(self,action,real_time=False):
         # Step the simulation
         
@@ -247,11 +297,12 @@ class AGV_env(gym.Env):
     
 if __name__ == '__main__':
     env = AGV_env(render_mode='human',debug=True,num_step=1)
-    p.loadURDF('cube.urdf',[-1,1,1])
-    p.loadURDF('cube.urdf',[1,1,1])
-    p.loadURDF('cube.urdf',[1,-1,1])
-    p.loadURDF('cube.urdf',[-1,-1,1])
+    p.loadURDF('cube.urdf',[-2,2,0.5])
+    p.loadURDF('cube.urdf',[2,2,0.5])
+    p.loadURDF('cube.urdf',[2,-2,0.5])
+    p.loadURDF('cube.urdf',[-2,-2,0.5])
     while True:
-        print(env.get_velocity())
-        print(len(env.get_lidar()))
-        env.step(np.array([2,2]),real_time=True)
+        obs, reward, terminated, truncated, info = env.step(np.array([3,3]),real_time=True)
+        if terminated or truncated:
+            print(terminated,truncated)
+            obs, inf = env.reset()
