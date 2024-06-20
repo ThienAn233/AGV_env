@@ -11,7 +11,7 @@ class AGV_env(gym.Env):
     metadata = {"render_modes": ["human"], "render_fps": 24 }
     def __init__(
         self,
-        max_length      = 1000,
+        max_length      = 500,
         num_step        = 24,
         render_mode     = None,
         debug           = False,
@@ -53,10 +53,11 @@ class AGV_env(gym.Env):
         self.robotId    = 1
         self.targetId   = 2
         self.mode       = p.VELOCITY_CONTROL
-        self.max_vel    = 10    # rad/s
-        self.max_to     = 10    # Nm
+        self.max_vel    = 20    # rad/s
+        self.max_to     = 360   # Nm
         self.numray     = 500   # From Hshop C1M1 RPLIDAR
         self.raylen     = 12    # From Hshop C1M1 RPLIDAR
+        self.termdis    = 0.25  # m
         self.action_sp  = 2
         self.sleep_time = 1./240.
         self.initHeight = 0.1
@@ -217,7 +218,7 @@ class AGV_env(gym.Env):
         rew = self.calculate_reward()
         ## GET INFO
         ray_inf = obs[-self.numray:]
-        terminated = np.sum(ray_inf < 0.01*self.raylen) > 0
+        terminated = np.sum(ray_inf < (self.termdis/self.raylen)) > 0
         truncated  = self.time_steps_in_current_episode[0]> self.max_length
         info = None
         return obs, rew, bool(terminated), bool(truncated), info
@@ -296,13 +297,14 @@ class AGV_env(gym.Env):
   
     
 if __name__ == '__main__':
-    env = AGV_env(render_mode='human',debug=True,num_step=1)
+    env = AGV_env(max_length=24*500,render_mode='human',debug=True,num_step=1)
     p.loadURDF('cube.urdf',[-2,2,0.5])
     p.loadURDF('cube.urdf',[2,2,0.5])
     p.loadURDF('cube.urdf',[2,-2,0.5])
     p.loadURDF('cube.urdf',[-2,-2,0.5])
+    p.setRealTimeSimulation(True)
     while True:
-        obs, reward, terminated, truncated, info = env.step(np.array([3,3]),real_time=True)
+        obs, reward, terminated, truncated, info = env.step(np.array([.5,.5]),real_time=True)
         if terminated or truncated:
             print(terminated,truncated)
             obs, inf = env.reset()
